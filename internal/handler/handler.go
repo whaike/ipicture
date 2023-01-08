@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"ipicture/internal/picture"
 	"strings"
 )
@@ -38,8 +37,8 @@ func (h *Handler) FileCheck() {
 					Type:   c.Type,
 					Suffix: c.Suffix,
 				}
-			default:
-				fmt.Println("无法操作的数据类型", c)
+				//default:
+				//	fmt.Println("无法操作的数据类型", c)
 			}
 
 		}

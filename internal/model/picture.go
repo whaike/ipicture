@@ -48,6 +48,9 @@ func NewPictureDB(datasource string) *Picture {
 	if err != nil {
 		panic(err.Error())
 	}
+	dq := `drop table if exists "pictures"`
+	db.Exec(dq)
+
 	cq := `
 CREATE TABLE IF NOT EXISTS "pictures" (
   "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,

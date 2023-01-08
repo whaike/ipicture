@@ -146,6 +146,7 @@ type Option func(exifgo *ExifGo)
 
 func WithFilters(filter *ExifOptions) Option {
 	return func(e *ExifGo) {
+		// if filter is nil, will init all options true
 		if filter == nil {
 			o := &ExifOptions{}
 			s := reflect.ValueOf(o).Elem()

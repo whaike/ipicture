@@ -16,6 +16,7 @@ func TestExifGo_MetaInfo(t *testing.T) {
 	//	GPSLongitude:      true,
 	//	GPSLatitude:       true,
 	//	UserComment:       true,
+	//	DateTime:          true,
 	//}))
 	res := E.MetaInfo(filename)
 	if res != nil {
