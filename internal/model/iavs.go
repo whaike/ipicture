@@ -6,10 +6,10 @@ import (
 )
 
 type (
-	Picture struct {
+	IAV struct {
 		db *sql.DB
 	}
-	PictureModel struct {
+	IAVModel struct {
 		Id      int64  `db:"id" json:"id"`
 		Name    string `db:"name" json:"name"`
 		Path    string `db:"path" json:"path"`
@@ -23,8 +23,8 @@ type (
 	}
 )
 
-func (p *Picture) Insert(pm *PictureModel) error {
-	stmt, err := p.db.Prepare("INSERT INTO pictures(name, path, md5,type,suffix,tags,shoot_at,lng,lat)" +
+func (p *IAV) Insert(pm *IAVModel) error {
+	stmt, err := p.db.Prepare("INSERT INTO iavs(name, path, md5,type,suffix,tags,shoot_at,lng,lat)" +
 		"values(?,?,?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
@@ -33,9 +33,9 @@ func (p *Picture) Insert(pm *PictureModel) error {
 	return err
 }
 
-func (p *Picture) Query(pm *PictureModel) (*PictureModel, error) {
-	row := p.db.QueryRow("SELECT * FROM pictures where md5 = ? limit 1", pm.Md5)
-	r := &PictureModel{}
+func (p *IAV) Query(pm *IAVModel) (*IAVModel, error) {
+	row := p.db.QueryRow("SELECT * FROM iavs where md5 = ? limit 1", pm.Md5)
+	r := &IAVModel{}
 	err := row.Scan(&r.Id, &r.Name, &r.Path, &r.Md5, &r.Type, &r.Suffix, &r.Tags, &r.ShootAt, &r.Lng, &r.Lat)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -43,16 +43,16 @@ func (p *Picture) Query(pm *PictureModel) (*PictureModel, error) {
 	return r, err
 }
 
-func NewPictureDB(datasource string) *Picture {
+func NewIAVSModel(datasource string) *IAV {
 	db, err := sql.Open("sqlite3", datasource)
 	if err != nil {
 		panic(err.Error())
 	}
-	dq := `drop table if exists "pictures"`
+	dq := `drop table if exists "iavs"`
 	db.Exec(dq)
 
 	cq := `
-CREATE TABLE IF NOT EXISTS "pictures" (
+CREATE TABLE IF NOT EXISTS "iavs" (
   "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   "name" text(255) NOT NULL,
   "path" text NOT NULL DEFAULT '',
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS "pictures" (
 );
 `
 	db.Exec(cq)
-	return &Picture{
+	return &IAV{
 		db: db,
 	}
 }
