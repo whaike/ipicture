@@ -199,5 +199,6 @@ func (e *ExifGo) MetaInfo(filename string) map[string]string {
 			result[key] = res
 		}
 	}
+
 	return result
 }

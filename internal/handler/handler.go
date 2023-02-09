@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"ipicture/internal/hooks"
 	"ipicture/internal/model"
 	"ipicture/pkg"
 	"os"
@@ -15,9 +14,8 @@ import (
 
 type (
 	Handler struct {
-		FileCh   chan *File
-		db       *model.IAV
-		hookList []hooks.IHook
+		FileCh chan *File
+		db     *model.IAV
 	}
 	File struct {
 		*MetaInfo
@@ -34,11 +32,10 @@ type (
 	}
 )
 
-func NewHandler(fileCh chan *File, db *model.IAV, hks []hooks.IHook) *Handler {
+func NewHandler(fileCh chan *File, db *model.IAV) *Handler {
 	return &Handler{
-		FileCh:   fileCh,
-		db:       db,
-		hookList: hks,
+		FileCh: fileCh,
+		db:     db,
 	}
 }
 
@@ -46,7 +43,7 @@ func (h *Handler) FileCheck() {
 	for {
 		select {
 		case c := <-h.FileCh:
-			err := c.Typed()
+			err := c.TypeCheck()
 			if err != nil {
 				continue
 			}
@@ -55,14 +52,15 @@ func (h *Handler) FileCheck() {
 			if err != nil {
 				continue
 			}
+
 			err = c.metaInfo()
 			if err != nil {
 				continue
 			}
-			err = h.hooks(c)
-			if err != nil {
-				continue
-			}
+			//err = h.hooks(c)
+			//if err != nil {
+			//	continue
+			//}
 			h.UpInsert(c)
 		}
 	}
@@ -101,17 +99,7 @@ func (h *Handler) UpInsert(fi *File) {
 	}
 }
 
-func (h *Handler) hooks(fi *File) error {
-	for _, hook := range h.hookList {
-		err := hook.Hook(fi)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (fi *File) Typed() error {
+func (fi *File) TypeCheck() error {
 	var err error
 	suffix := ""
 	if !strings.HasPrefix(fi.Name, ".") {
@@ -120,7 +108,7 @@ func (fi *File) Typed() error {
 			suffix = sp[len(sp)-1]
 		} else {
 			err = fmt.Errorf("没有后缀")
-			fmt.Println(fi.Path, err.Error())
+			//fmt.Println(fi.Path, err.Error())
 			return err
 		}
 	}
@@ -133,7 +121,7 @@ func (fi *File) Typed() error {
 		fi.Type = "movie"
 	default:
 		err = fmt.Errorf("无法处理的后缀")
-		fmt.Println(fi.Path, err.Error())
+		//fmt.Println(fi.Path, err.Error())
 		return err
 	}
 	return nil
