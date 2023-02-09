@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"ipicture/g"
 	"ipicture/internal/model"
 	"ipicture/pkg"
 	"os"
@@ -43,25 +44,31 @@ func (h *Handler) FileCheck() {
 	for {
 		select {
 		case c := <-h.FileCh:
+			start := time.Now()
 			err := c.TypeCheck()
 			if err != nil {
 				continue
 			}
+			a1 := time.Since(start).Milliseconds()
 
 			err = c.md5()
 			if err != nil {
 				continue
 			}
+			a2 := time.Since(start).Milliseconds()
 
 			err = c.metaInfo()
 			if err != nil {
 				continue
 			}
+			a3 := time.Since(start).Milliseconds()
 			//err = h.hooks(c)
 			//if err != nil {
 			//	continue
 			//}
 			h.UpInsert(c)
+			a4 := time.Since(start).Milliseconds()
+			g.Logs.Debugf("data life: prepare[%dms],md5[%dms],exiftool[%dms],db[%dms]", a1, a2, a3, a4)
 		}
 	}
 }
@@ -69,7 +76,7 @@ func (h *Handler) FileCheck() {
 func (h *Handler) UpInsert(fi *File) {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println("[UpInsert] 捕获异常: ", err)
+			g.Logs.Errorf("[UpInsert] 捕获异常: %s", err)
 		}
 	}()
 	pm := &model.IAVModel{
@@ -84,7 +91,7 @@ func (h *Handler) UpInsert(fi *File) {
 	}
 	old, err := h.db.Query(pm)
 	if err != nil {
-		fmt.Println("查询失败", pm.Name, pm.Md5, err.Error())
+		g.Logs.Errorf("查询失败: %s, %s, %s", pm.Name, pm.Md5, err.Error())
 		return
 	}
 	if old != nil && old.Md5 == pm.Md5 {
@@ -96,6 +103,7 @@ func (h *Handler) UpInsert(fi *File) {
 	} else {
 		h.db.Insert(pm)
 		fmt.Println("insert ", pm.Path)
+		g.Logs.Infof("insert %s", pm.Path)
 	}
 }
 
@@ -132,20 +140,23 @@ func (fi *File) TypeCheck() error {
 func (mi *MetaInfo) md5() error {
 	f, err := os.Open(mi.Path)
 	if err != nil {
-		fmt.Println("打开文件失败", mi.Path)
+		g.Logs.Errorf("打开文件失败: %s", mi.Path)
 		return err
 	}
 	hash := md5.New()
 	_, err = io.Copy(hash, f)
+	if err != nil {
+		g.Logs.Errorf("拷贝文件,准备计算MD5失败: %s", mi.Path)
+		return err
+	}
 	mi.Md5 = hex.EncodeToString(hash.Sum(nil))
-	fmt.Println("拷贝文件,计算MD5失败", mi.Path)
-	return err
+	return nil
 }
 
 func (mi *MetaInfo) metaInfo() error {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println("[metaInfo] 捕获异常: ", err)
+			g.Logs.Errorf("[metaInfo] 捕获异常: %s", err)
 		}
 	}()
 	metaTool := pkg.NewExifGo()
@@ -172,7 +183,7 @@ func (mi *MetaInfo) getCreateTime(mp map[string]string) error {
 	if shootAt != "" && len(shootAt) == 16 {
 		tm, err := time.Parse("2006:01:02 15:04", shootAt)
 		if err != nil {
-			fmt.Println("parse time error: ", mi.Path, shootAt)
+			g.Logs.Errorf("parse time error: %s, %s", mi.Path, shootAt)
 			return err
 		} else {
 			shootAt = tm.Format("2006:01:02 15:04:05")
@@ -213,5 +224,5 @@ func (mi *MetaInfo) deleteSelf() {
 	//	fmt.Println(fmt.Sprintf("delete %s,%s \n", mi.Md5, mi.Path))
 	//}
 
-	fmt.Println(fmt.Sprintf("delete %s,%s \n", mi.Md5, mi.Path))
+	g.Logs.Debugf("delete %s,%s \n", mi.Md5, mi.Path)
 }

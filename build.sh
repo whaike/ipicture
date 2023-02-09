@@ -3,10 +3,9 @@
 ENVV=$1
 
 if [ $ENVV = 'arm64' ];then
-  CGO_ENABLED=on GOARCH=arm64 GOOS=linux go build -o bin/arm64/ipicture  main.go
+  go build -o bin/arm64/ipicture  main.go
 elif [ $ENVV = 'windows' ]; then
-  CGO_ENABLED=on GOARCH=amd64 GOOS=windows go build -o bin/windows/ipicture main.go
+  CGO_ENABLED=1 GOARCH=amd64 GOOS=windows GOARCH=amd64 CC=/opt/local/bin/x86_64-w64-mingw32-gcc go build -o bin/windows/ipicture.exe -ldflags "-H windowsgui" main.go
 elif [ $ENVV = 'linux' ]; then
-  CGO_ENABLED=on GOARCH=ubuntu GOOS=linux go build -o bin/linux/ipicture main.go
+  CGO_ENABLED=1 GOARCH=ubuntu GOOS=linux go build -o bin/linux/ipicture main.go
 fi
-

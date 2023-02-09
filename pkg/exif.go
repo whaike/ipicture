@@ -3,7 +3,9 @@ package pkg
 import (
 	"fmt"
 	"github.com/barasher/go-exiftool"
+	"ipicture/g"
 	"reflect"
+	"time"
 )
 
 type ExifGo struct {
@@ -181,7 +183,10 @@ func (e *ExifGo) MetaInfo(filename string) map[string]string {
 	}
 	defer et.Close()
 
+	start := time.Now()
 	fileInfos := et.ExtractMetadata(filename)
+	end := time.Since(start).Milliseconds()
+
 	if len(fileInfos) == 0 {
 		return nil
 	}
@@ -199,6 +204,7 @@ func (e *ExifGo) MetaInfo(filename string) map[string]string {
 			result[key] = res
 		}
 	}
-
+	others := time.Since(start).Milliseconds()
+	g.Logs.Debugf("MetaInfo: exiftool.ExtractMetadata cost: %d ms, others: %d", end, others)
 	return result
 }
