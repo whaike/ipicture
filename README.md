@@ -23,6 +23,7 @@
 程序最多只删除重复的文件,不对现有其他数据做任何修改。
 
 ### 编译
-`./build.sh xxx` windows / arm64 / linux
+mac或Windows
+`./build.sh xxx` windows / arm64
 ### 运行
 `./bin/arm64/ipicture -path=path to photos root directory`
