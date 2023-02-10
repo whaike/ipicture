@@ -140,7 +140,7 @@ func (h *Handler) UpInsert(fi *File) {
 			if h.delDuplicate {
 				fi.deleteSelf()
 			} else {
-				g.Logs.Infof("duplicated file: %s, %s", fi.Md5, fi.Path)
+				g.Logs.Warnf("duplicated file: %s, %s", fi.Md5, fi.Path)
 			}
 		}
 	} else {

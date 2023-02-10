@@ -28,6 +28,7 @@ func newWK(hand *handler.Handler, root string) *WK {
 }
 
 func (w *WK) Start() {
+	number := 0
 	start := time.Now()
 	g.Logs.Info("start work")
 	defer func() {
@@ -35,19 +36,19 @@ func (w *WK) Start() {
 			fmt.Println(err)
 		}
 		end := time.Since(start).Seconds()
-		g.Logs.Infof("stop work, cost [%f s]", end)
+		g.Logs.Infof("stop work, %d files, cost [%f s], useful picture/movie was recorded in ipicture.db", number, end)
 	}()
 	go w.hand.FileCheck()
 	go w.hand.MetaAndSave()
 	filepath.Walk(w.rootPath, func(path string, info fs.FileInfo, err error) error {
 		if !info.IsDir() && !strings.HasPrefix(info.Name(), ".") {
-			//fmt.Println(path)
 			w.hand.FileCh <- &handler.File{
 				MetaInfo: &handler.MetaInfo{
 					Name: info.Name(),
 					Path: path,
 				},
 			}
+			number++
 		}
 		return nil
 	})
@@ -76,6 +77,7 @@ func main() {
 		c.ZapLog.Level = *level
 	}
 	if *pyroscope_enable {
+		c.PyroscopeEnable = *pyroscope_enable
 		c.PyroscopeAddr = *pyroscope_addr
 	}
 
@@ -93,6 +95,7 @@ func main() {
 			ApplicationName: "ipicture.golang.app",
 			ServerAddress:   c.PyroscopeAddr,
 		})
+		g.Logs.Infof("start pyroscope, push to %s", c.PyroscopeAddr)
 	}
 
 	iavModel := model.NewIAVSModel("./ipictures.db")
