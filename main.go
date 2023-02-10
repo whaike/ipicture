@@ -12,6 +12,7 @@ import (
 	"ipicture/internal/model"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type WK struct {
@@ -27,8 +28,17 @@ func newWK(hand *handler.Handler, root string) *WK {
 }
 
 func (w *WK) Start() {
-	g.Logs.Info("start walking")
+	start := time.Now()
+	g.Logs.Info("start work")
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err)
+		}
+		end := time.Since(start).Seconds()
+		g.Logs.Infof("stop work, cost [%f s]", end)
+	}()
 	go w.hand.FileCheck()
+	go w.hand.MetaAndSave()
 	filepath.Walk(w.rootPath, func(path string, info fs.FileInfo, err error) error {
 		if !info.IsDir() && !strings.HasPrefix(info.Name(), ".") {
 			//fmt.Println(path)
@@ -42,8 +52,6 @@ func (w *WK) Start() {
 		return nil
 	})
 
-	g.Logs.Info("stop walking")
-
 	// order pictures by created time and move them to other place
 	// 1、首先对所有图片/视频排序并取得时间范围
 	// 2、在时间范围内按年+月新建文件夹
@@ -51,15 +59,13 @@ func (w *WK) Start() {
 }
 
 func main() {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-
 	path := flag.String("path", ".", "your file path")
 	conFile := flag.String("config", "etc/config.yaml", "config file. default etc/config.yaml")
 	level := flag.String("level", "info", "log level, default info")
+	pyroscope_enable := flag.Bool("pyroscope_enable", false, "pyroscope, default false")
+	pyroscope_addr := flag.String("pyroscope_addr", "http://127.0.0.1:4040", "if pyroscope is enabled, pyroscope_addr is need, default 'http://127.0.0.1:4040'")
+	delDuplicate := flag.Bool("delDuplicate", false, "delete duplicate files. default false")
+
 	flag.Parse()
 
 	c := etc.LoadConfig(*conFile)
@@ -69,6 +75,14 @@ func main() {
 	if *level != "info" {
 		c.ZapLog.Level = *level
 	}
+	if *pyroscope_enable {
+		c.PyroscopeAddr = *pyroscope_addr
+	}
+
+	if *delDuplicate {
+		c.DelDuplicate = true
+	}
+
 	g.InitLog(&c.ZapLog)
 
 	if c.PyroscopeEnable {
@@ -83,7 +97,7 @@ func main() {
 
 	iavModel := model.NewIAVSModel("./ipictures.db")
 	fileCh := make(chan *handler.File)
-	hand := handler.NewHandler(fileCh, iavModel)
+	hand := handler.NewHandler(fileCh, iavModel, c.DelDuplicate)
 	wk := newWK(hand, *path)
 	wk.Start()
 }

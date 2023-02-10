@@ -7,7 +7,6 @@ import (
 	"io"
 	"ipicture/g"
 	"ipicture/internal/model"
-	"ipicture/pkg"
 	"os"
 	"strings"
 	"time"
@@ -15,8 +14,11 @@ import (
 
 type (
 	Handler struct {
-		FileCh chan *File
-		db     *model.IAV
+		FileCh       chan *File
+		metasCh      chan File
+		db           *model.IAV
+		tmp          int  // 缓存长度
+		delDuplicate bool // 是否删除重复文件
 	}
 	File struct {
 		*MetaInfo
@@ -33,10 +35,13 @@ type (
 	}
 )
 
-func NewHandler(fileCh chan *File, db *model.IAV) *Handler {
+func NewHandler(fileCh chan *File, db *model.IAV, delDuplicate bool) *Handler {
 	return &Handler{
-		FileCh: fileCh,
-		db:     db,
+		FileCh:       fileCh,
+		metasCh:      make(chan File),
+		db:           db,
+		tmp:          100,
+		delDuplicate: delDuplicate,
 	}
 }
 
@@ -44,33 +49,67 @@ func (h *Handler) FileCheck() {
 	for {
 		select {
 		case c := <-h.FileCh:
-			start := time.Now()
 			err := c.TypeCheck()
 			if err != nil {
 				continue
 			}
-			a1 := time.Since(start).Milliseconds()
-
 			err = c.md5()
 			if err != nil {
 				continue
 			}
-			a2 := time.Since(start).Milliseconds()
-
-			err = c.metaInfo()
-			if err != nil {
-				continue
-			}
-			a3 := time.Since(start).Milliseconds()
-			//err = h.hooks(c)
-			//if err != nil {
-			//	continue
-			//}
-			h.UpInsert(c)
-			a4 := time.Since(start).Milliseconds()
-			g.Logs.Debugf("data life: prepare[%dms],md5[%dms],exiftool[%dms],db[%dms]", a1, a2, a3, a4)
+			h.metasCh <- *c
 		}
 	}
+}
+
+func (h *Handler) MetaAndSave() {
+	fs := make([]File, 0)
+	work := time.Now()
+	for {
+		select {
+		case c := <-h.metasCh:
+			if c.MetaInfo == nil {
+				continue
+			}
+			fs = append(fs, c)
+			if len(fs) >= h.tmp || time.Since(work).Seconds() > 1 {
+				go h.Do(fs)
+				fs = make([]File, 0)
+				work = time.Now()
+			}
+		}
+	}
+}
+
+func (h *Handler) Do(fsIn []File) {
+	fileops := make([]File, 0)
+	for _, in := range fsIn {
+		if in.MetaInfo != nil {
+			fileops = append(fileops, in)
+		}
+	}
+	start := time.Now()
+	defer func() {
+		if err := recover(); err != nil {
+			g.Logs.Errorf("Do 函数崩溃，当前文件数量: %d, err=%v", len(fileops), err)
+		}
+	}()
+	fs := make([]string, 0)
+	for _, v := range fileops {
+		fs = append(fs, v.MetaInfo.Path)
+	}
+	et := NewExifGo()
+	mp := et.MetaInfos(fs...)
+	a1 := time.Since(start).Milliseconds()
+	for i, f := range fileops {
+		err := f.metaInfo2(mp[i]) // 补充元数据信息
+		if err != nil {
+			continue
+		}
+		h.UpInsert(&f)
+	}
+	a2 := time.Since(start).Milliseconds()
+	g.Logs.Debugf("本轮基本信息查询结束,获取[%d 个]文件信息, 其中元数据耗时[%d ms], 其他数据及存储耗时%d ms]", len(fileops), a1, a2-a1)
 }
 
 func (h *Handler) UpInsert(fi *File) {
@@ -98,11 +137,14 @@ func (h *Handler) UpInsert(fi *File) {
 		if old.Path == pm.Path && old.Name == pm.Name {
 			return
 		} else {
-			fi.deleteSelf()
+			if h.delDuplicate {
+				fi.deleteSelf()
+			} else {
+				g.Logs.Infof("duplicated file: %s, %s", fi.Md5, fi.Path)
+			}
 		}
 	} else {
 		h.db.Insert(pm)
-		fmt.Println("insert ", pm.Path)
 		g.Logs.Infof("insert %s", pm.Path)
 	}
 }
@@ -116,7 +158,6 @@ func (fi *File) TypeCheck() error {
 			suffix = sp[len(sp)-1]
 		} else {
 			err = fmt.Errorf("没有后缀")
-			//fmt.Println(fi.Path, err.Error())
 			return err
 		}
 	}
@@ -129,7 +170,6 @@ func (fi *File) TypeCheck() error {
 		fi.Type = "movie"
 	default:
 		err = fmt.Errorf("无法处理的后缀")
-		//fmt.Println(fi.Path, err.Error())
 		return err
 	}
 	return nil
@@ -153,14 +193,13 @@ func (mi *MetaInfo) md5() error {
 	return nil
 }
 
-func (mi *MetaInfo) metaInfo() error {
+// 补充其他元数据信息
+func (mi *MetaInfo) metaInfo2(mt map[string]string) error {
 	defer func() {
 		if err := recover(); err != nil {
-			g.Logs.Errorf("[metaInfo] 捕获异常: %s", err)
+			g.Logs.Errorf("[metaInfo2] 捕获异常: %s", err)
 		}
 	}()
-	metaTool := pkg.NewExifGo()
-	mt := metaTool.MetaInfo(mi.Path)
 	err := mi.getCreateTime(mt)
 	if err != nil {
 		return err
@@ -217,12 +256,10 @@ func (mi *MetaInfo) guessTimeFromName(name string) string {
 }
 
 func (mi *MetaInfo) deleteSelf() {
-	//err := os.Remove(mi.Path)
-	//if err != nil {
-	//	fmt.Println(fmt.Sprintf("delete %s error, %s", mi.Path, err.Error()))
-	//} else {
-	//	fmt.Println(fmt.Sprintf("delete %s,%s \n", mi.Md5, mi.Path))
-	//}
-
-	g.Logs.Debugf("delete %s,%s \n", mi.Md5, mi.Path)
+	err := os.Remove(mi.Path)
+	if err != nil {
+		g.Logs.Errorf("delete duplicate %s error, %s", mi.Path, err.Error())
+	} else {
+		g.Logs.Infof("delete duplicate %s, %s", mi.Md5, mi.Path)
+	}
 }

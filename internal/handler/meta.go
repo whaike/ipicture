@@ -1,7 +1,6 @@
-package pkg
+package handler
 
 import (
-	"fmt"
 	"github.com/barasher/go-exiftool"
 	"ipicture/g"
 	"reflect"
@@ -144,67 +143,47 @@ type ExifOptions struct {
 	InteroperabilityIndex bool
 }
 
-type Option func(exifgo *ExifGo)
-
-func WithFilters(filter *ExifOptions) Option {
-	return func(e *ExifGo) {
-		// if filter is nil, will init all options true
-		if filter == nil {
-			o := &ExifOptions{}
-			s := reflect.ValueOf(o).Elem()
-			n := s.NumField()
-			for i := 0; i < n; i++ {
-				s.Field(i).SetBool(true)
-			}
-			e.Options = o
-		} else {
-			e.Options = filter
-		}
+func NewExifGo() *ExifGo {
+	e := &ExifGo{
+		Options: &ExifOptions{},
 	}
-}
-
-func NewExifGo(options ...Option) *ExifGo {
-	e := &ExifGo{}
-	if len(options) == 0 {
-		options = append(options, WithFilters(nil))
-	}
-	for _, opt := range options {
-		opt(e)
-	}
-
 	return e
 }
 
-func (e *ExifGo) MetaInfo(filename string) map[string]string {
+func (e *ExifGo) MetaInfos(filenames ...string) []map[string]string {
 	et, err := exiftool.NewExiftool(exiftool.CoordFormant("%+f"))
 	if err != nil {
-		fmt.Printf("Error when intializing: %v\n", err)
+		g.Logs.Errorf("Error when intializing: %v", err)
 		return nil
 	}
 	defer et.Close()
 
 	start := time.Now()
-	fileInfos := et.ExtractMetadata(filename)
+	fileInfos := et.ExtractMetadata(filenames...)
 	end := time.Since(start).Milliseconds()
 
 	if len(fileInfos) == 0 {
 		return nil
 	}
-	result := make(map[string]string)
+	result := make([]map[string]string, len(filenames))
 
-	s := reflect.ValueOf(*e.Options)
-	for i := 0; i < s.NumField(); i++ {
-		v := s.Field(i).Interface().(bool)
-		if v {
-			key := s.Type().Field(i).Name
-			res, err := fileInfos[0].GetString(key)
-			if err != nil {
-				continue
+	for _, fileInfo := range fileInfos {
+		rs := make(map[string]string)
+		s := reflect.ValueOf(*e.Options)
+		for i := 0; i < s.NumField(); i++ {
+			v := s.Field(i).Interface().(bool)
+			if v {
+				key := s.Type().Field(i).Name
+				res, err := fileInfo.GetString(key)
+				if err != nil {
+					continue
+				}
+				rs[key] = res
 			}
-			result[key] = res
 		}
 	}
+
 	others := time.Since(start).Milliseconds()
-	g.Logs.Debugf("MetaInfo: exiftool.ExtractMetadata cost: %d ms, others: %d", end, others)
+	g.Logs.Debugf("MetaInfo %d files: exiftool.ExtractMetadata cost: %d ms, others: %d", len(filenames), end, others)
 	return result
 }

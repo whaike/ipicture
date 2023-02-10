@@ -12,6 +12,7 @@ type Config struct {
 	Path            string `yaml:"Path"`
 	PyroscopeEnable bool   `yaml:"PyroscopeEnable"`
 	PyroscopeAddr   string `yaml:"PyroscopeAddr"`
+	DelDuplicate    bool   `yaml:"DelDuplicate"`
 }
 
 func LoadConfig(filepath string) *Config {
