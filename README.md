@@ -8,7 +8,7 @@
 保留原有的分类文件夹,不对原文件或文件夹做修改,如果设置`delDuplicate`为`true`,则会从中删除重复的部分
 
 ### TODO
--[ ] 分类：将有效文件移动到指定目录下，并按一定规则分类
+- [ ] 分类：将有效文件移动到指定目录下，并按一定规则分类
 
 ## 使用
 需要先安装 [exiftool](https://www.sno.phy.queensu.ca/~phil/exiftool/)
