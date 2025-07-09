@@ -1,1 +1,8 @@
 .DS_Store
+backend/testdata/*
+backend/uploads/*
+backend/thumbnail/*
+backend/tmp/*
+backend/tmp/*
+backend/logs/*
+backend/ipicture.db
