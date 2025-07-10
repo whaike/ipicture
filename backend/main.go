@@ -19,6 +19,8 @@ func main() {
 }))
 
 	r.Static("/thumbnails", "./thumbnails")
+	// 新增：暴露原图目录
+	r.Static("/uploads", "./uploads")
 	api.RegisterRoutes(r)
 	api.RegisterFileRoutes(r)
 
